@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FreshBite | Food Ordering</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#182230;background:#fffaf6}
+header{padding:18px 7%;background:white;display:flex;justify-content:space-between;box-shadow:0 2px 12px #0000000c}
+.logo{font-weight:800;font-size:24px;color:#d94f2b}.hero{padding:45px 7%;background:#fff0e6}.hero h1{font-size:38px;margin:0 0 8px}
+main{padding:28px 7%;display:grid;grid-template-columns:2fr 1fr;gap:24px}.menu{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+.card,.cart{background:white;border:1px solid #eee2d8;border-radius:14px;padding:17px}.icon{font-size:36px}.price{color:#d94f2b;font-weight:bold}
+button{border:0;background:#d94f2b;color:white;padding:10px 14px;border-radius:8px;cursor:pointer}input{width:100%;padding:11px;margin:6px 0 12px;border:1px solid #ddd;border-radius:8px}
+.row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #eee}.muted{color:#667085;font-size:13px}
+@media(max-width:780px){main{grid-template-columns:1fr}.hero h1{font-size:30px}}
+</style></head><body>
+<header><div class="logo">FreshBite</div><div>Online Food Ordering</div></header>
+<section class="hero"><h1>Fresh food, made simple.</h1><p>Choose your favourites and place an order.</p></section>
+<main><section><h2>Menu</h2><div id="menu" class="menu"></div></section>
+<aside class="cart"><h2>Your Cart</h2><label>Customer name *</label><input id="name" placeholder="Enter your name">
+<label>Phone (optional)</label><input id="phone" placeholder="Phone number"><div id="cart"></div>
+<div class="row"><strong>Total</strong><strong id="total">Rs. 0.00</strong></div>
+<button id="submit" style="width:100%;margin-top:14px">Place Order</button><p id="message" aria-live="polite"></p>
+<p class="muted">Java server must be running on port 8080. Menu item IDs must match the database.</p></aside></main>
+<script>
+const products=[{id:1,name:"Burger",category:"Fast Food",price:120,icon:"🍔"},{id:2,name:"Pizza",category:"Fast Food",price:250,icon:"🍕"},{id:3,name:"Sandwich",category:"Snacks",price:100,icon:"🥪"},{id:4,name:"Fried Rice",category:"Main Course",price:150,icon:"🍚"},{id:5,name:"Juice",category:"Beverage",price:60,icon:"🧃"},{id:6,name:"Tomato Toast",category:"Snacks",price:80,icon:"🍞"}];
+const cart=new Map();
+function drawMenu(){document.getElementById("menu").innerHTML=products.map(p=>`<article class="card"><div class="icon">${p.icon}</div><h3>${p.name}</h3><p class="muted">${p.category}</p><p class="price">Rs. ${p.price.toFixed(2)}</p><button onclick="add(${p.id})">Add to cart</button></article>`).join("")}
+function add(id){cart.set(id,(cart.get(id)||0)+1);drawCart()}
+function drawCart(){let sum=0,rows=[];for(const [id,q] of cart){const p=products.find(x=>x.id===id);sum+=p.price*q;rows.push(`<div class="row"><span>${p.name} × ${q}</span><span>Rs. ${(p.price*q).toFixed(2)}</span></div>`)}document.getElementById("cart").innerHTML=rows.join("")||'<p class="muted">No items selected.</p>';document.getElementById("total").textContent="Rs. "+sum.toFixed(2)}
+document.getElementById("submit").addEventListener("click",async()=>{const msg=document.getElementById("message");const name=document.getElementById("name").value.trim();if(!name||cart.size===0){msg.textContent="Enter your name and add at least one item.";return}
+msg.textContent="Submitting...";const payload={customerName:name,phone:document.getElementById("phone").value.trim(),items:[...cart].map(([itemId,quantity])=>({itemId,quantity}))};
+try{const res=await fetch("http://localhost:8080/order",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const data=await res.json();if(!res.ok||!data.success)throw new Error(data.message||"Order failed");msg.textContent=`Order saved! Order ID: ${data.orderId}. Total: Rs. ${Number(data.totalAmount).toFixed(2)}`;cart.clear();drawCart()}catch(err){msg.textContent="Order could not be saved: "+err.message}});
+drawMenu();drawCart();
+</script></body></html>

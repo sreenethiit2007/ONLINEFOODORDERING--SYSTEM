@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+*.class
+__pycache__/
+*.py[cod]
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
