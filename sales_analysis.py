@@ -4,61 +4,67 @@ import mysql.connector
 import pandas as pd
 import matplotlib.pyplot as plt
 
-BASE = Path(__file__).resolve().parent
-REPORTS = BASE / "Reports"
-CHARTS = BASE / "Charts"
-REPORTS.mkdir(exist_ok=True)
-CHARTS.mkdir(exist_ok=True)
-
 password = os.getenv("DB_PASSWORD")
 if not password:
     raise RuntimeError("DB_PASSWORD is not set in this PowerShell session.")
 
-connection = mysql.connector.connect(
-    host="localhost", user="root", password=password, database="food_ordering_db"
+con = mysql.connector.connect(
+    host="localhost", user="root", password=password,
+    database="food_ordering_db"
 )
+reports = Path("Python") / "Reports"
+charts = Path("Python") / "Charts"
+reports.mkdir(parents=True, exist_ok=True)
+charts.mkdir(parents=True, exist_ok=True)
+
 try:
-    orders = pd.read_sql(
-        """SELECT o.order_id, o.order_date, o.total_amount, o.status,
-                  c.customer_name
-           FROM orders o JOIN customers c ON c.customer_id=o.customer_id
-           ORDER BY o.order_date""", connection
-    )
-    popular = pd.read_sql(
-        """SELECT m.item_name, SUM(oi.quantity) AS quantity_sold,
-                  SUM(oi.subtotal) AS revenue
-           FROM order_items oi
-           JOIN menu_items m ON m.item_id=oi.item_id
-           JOIN orders o ON o.order_id=oi.order_id
-           WHERE o.status <> 'Cancelled'
-           GROUP BY m.item_id, m.item_name
-           ORDER BY quantity_sold DESC""", connection
-    )
+    query = """
+    SELECT m.item_name, SUM(oi.quantity) AS total_quantity,
+           SUM(oi.subtotal) AS total_sales
+    FROM order_items oi
+    JOIN menu_items m ON oi.item_id=m.item_id
+    JOIN orders o ON oi.order_id=o.order_id
+    WHERE o.status='Completed'
+    GROUP BY m.item_id,m.item_name
+    ORDER BY total_quantity DESC
+    """
+    df = pd.read_sql(query, con)
+    print("\\n===== RESTAURANT SALES ANALYSIS =====")
+    if df.empty:
+        print("No completed orders found. Use Java menu option 7 to mark an order Completed.")
+    else:
+        print(df.to_string(index=False))
+        df.to_csv(reports / "sales_report.csv", index=False)
+
+        plt.figure(figsize=(8, 5))
+        plt.bar(df["item_name"], df["total_quantity"])
+        plt.title("Popular Food Items")
+        plt.xlabel("Food Items")
+        plt.ylabel("Quantity Sold")
+        plt.xticks(rotation=30, ha="right")
+        plt.tight_layout()
+        plt.savefig(charts / "popular_items.png")
+        plt.close()
+
+        plt.figure(figsize=(8, 5))
+        plt.bar(df["item_name"], df["total_sales"])
+        plt.title("Restaurant Sales Analysis")
+        plt.xlabel("Food Items")
+        plt.ylabel("Total Sales (Rs.)")
+        plt.xticks(rotation=30, ha="right")
+        plt.tight_layout()
+        plt.savefig(charts / "sales_chart.png")
+        plt.close()
+
+    daily = pd.read_sql("""
+        SELECT DATE(order_date) AS sales_date, COUNT(*) AS total_orders,
+               SUM(total_amount) AS total_revenue
+        FROM orders WHERE status='Completed'
+        GROUP BY DATE(order_date) ORDER BY sales_date
+    """, con)
+    daily.to_csv(reports / "daily_sales_report.csv", index=False)
+    print("\\nDaily sales report:")
+    print(daily.to_string(index=False) if not daily.empty else "No completed sales.")
+    print("\\nReports saved in Python/Reports and charts in Python/Charts.")
 finally:
-    connection.close()
-
-orders["order_date"] = pd.to_datetime(orders["order_date"])
-orders.to_csv(REPORTS / "sales_report.csv", index=False)
-popular.to_csv(REPORTS / "popular_items.csv", index=False)
-
-daily = orders.loc[orders["status"] != "Cancelled"].groupby(
-    orders.loc[orders["status"] != "Cancelled", "order_date"].dt.date
-)["total_amount"].sum()
-fig, ax = plt.subplots(figsize=(9, 5))
-daily.plot(kind="bar", ax=ax)
-ax.set_title("Daily Restaurant Sales")
-ax.set_xlabel("Order Date"); ax.set_ylabel("Sales (Rs.)")
-fig.tight_layout(); fig.savefig(CHARTS / "sales_chart.png", dpi=180); plt.close(fig)
-
-fig, ax = plt.subplots(figsize=(9, 5))
-if not popular.empty:
-    popular.head(10).sort_values("quantity_sold").plot(
-        kind="barh", x="item_name", y="quantity_sold", legend=False, ax=ax
-    )
-ax.set_title("Popular Menu Items"); ax.set_xlabel("Quantity Sold"); ax.set_ylabel("Menu Item")
-fig.tight_layout(); fig.savefig(CHARTS / "popular_items.png", dpi=180); plt.close(fig)
-
-print("Sales analysis completed.")
-print(f"Orders analysed: {len(orders)}")
-print(f"Reports saved to: {REPORTS}")
-print(f"Charts saved to: {CHARTS}")
+    con.close()
