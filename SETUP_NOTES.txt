@@ -1,6 +1,0 @@
-1. Install Java JDK, MySQL Server/Workbench and Python.
-2. Run Database/database_schema.sql; run sample_data.sql only on a fresh DB.
-3. Copy actual required JARs into Java/lib.
-4. Set DB_PASSWORD in the same PowerShell session.
-5. Start FoodOrderServer, then open Frontend/index.html.
-6. Install Python/requirements.txt and run sales_analysis.py for database reports.
